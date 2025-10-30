@@ -30,25 +30,68 @@ def home():
 def dashboard():
     return render_template('dashboard.html')
 
-@app.route('/insert-test', methods=['GET', 'POST'])
-def insert_test():
-    val = None
-    if request.method == 'POST':
-        data = request.get_json(silent=True) or {}
-        val = data.get('value')
-    if val is None:
-        val = request.args.get('value')
-    if val is None:
-        return jsonify({'ok': False, 'error': 'missing `value` parameter (query or JSON body)'}), 400
+
+@app.route('/api/data', methods=['POST'])
+def api_insert_data():
+    """
+    Espera JSON: {"sensor": "nombre", "value": 123, "ts": "2025-10-30T12:00:00Z" (opcional)}
+    Inserta en la colección 'data' y devuelve el id insertado.
+    """
+    payload = request.get_json(silent=True)
+    if not payload or 'value' not in payload:
+        return jsonify({'ok': False, 'error': 'JSON required with at least "value" field'}), 400
 
     try:
         client = get_mongo_client()
         db_name = os.environ.get('MONGO_DB', 'test')
         db = client[db_name]
-        coll = db['test_collection']
-        doc = {'value': val, 'ts': datetime.utcnow()}
+        coll = db['data']
+        doc = {
+            'sensor': payload.get('sensor'),
+            'value': payload.get('value'),
+            'meta': payload.get('meta'),
+            'ts': payload.get('ts') or datetime.utcnow()
+        }
         res = coll.insert_one(doc)
         return jsonify({'ok': True, 'inserted_id': str(res.inserted_id)}), 201
+    except PyMongoError as e:
+        return jsonify({'ok': False, 'error': str(e)}), 503
+
+
+@app.route('/api/data', methods=['GET'])
+def api_list_data():
+    """
+    Lista documentos recientes. Parámetros opcionales:
+    - limit: número de documentos (por defecto 20)
+    - sensor: filtrar por sensor
+    """
+    try:
+        limit = int(request.args.get('limit', 20))
+    except ValueError:
+        limit = 20
+
+    sensor = request.args.get('sensor')
+
+    try:
+        client = get_mongo_client()
+        db_name = os.environ.get('MONGO_DB', 'test')
+        db = client[db_name]
+        coll = db['data']
+
+        query = {}
+        if sensor:
+            query['sensor'] = sensor
+
+        docs_cursor = coll.find(query).sort('ts', -1).limit(limit)
+        docs = []
+        for d in docs_cursor:
+            d['_id'] = str(d.get('_id'))
+            ts = d.get('ts')
+            if hasattr(ts, 'isoformat'):
+                d['ts'] = ts.isoformat()
+            docs.append(d)
+
+        return jsonify({'ok': True, 'count': len(docs), 'data': docs}), 200
     except PyMongoError as e:
         return jsonify({'ok': False, 'error': str(e)}), 503
 

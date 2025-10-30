@@ -44,6 +44,8 @@ services:
       - ME_CONFIG_MONGODB_SERVER=mongo
       - ME_CONFIG_MONGODB_PORT=27017
       - ME_CONFIG_MONGODB_AUTH_DATABASE=admin
+      - ME_CONFIG_BASICAUTH_USERNAME=admin
+      - ME_CONFIG_BASICAUTH_PASSWORD=admin123
     depends_on:
       - mongo
     networks:
