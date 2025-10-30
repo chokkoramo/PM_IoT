@@ -10,15 +10,42 @@ app = Flask(__name__)
 
 
 def get_mongo_client():
+    """
+    Preferir MONGO_URL si está definido (p. ej. Atlas).
+    Si no, construir URI a partir de host/port/user/password manejando valores vacíos.
+    """
+    mongo_url = os.environ.get('MONGO_URL')
+    if mongo_url:
+        # Si usas Atlas es recomendable usar el URI "mongodb+srv://..."
+        return MongoClient(mongo_url, serverSelectionTimeoutMS=5000)
+
     host = os.environ.get('MONGO_HOST', 'mongo')
-    port = int(os.environ.get('MONGO_PORT', '27017'))
+    port = os.environ.get('MONGO_PORT')
     user = os.environ.get('MONGO_USER')
     password = os.environ.get('MONGO_PASSWORD')
+
+    # validar port
+    port_int = None
+    if port:
+        try:
+            port_int = int(port)
+        except Exception:
+            port_int = None
+
+    # construir URI seguro
     if user and password:
-        uri = f"mongodb://{user}:{password}@{host}:{port}/?authSource=admin"
+        # si el host es un SRV host (Atlas) y no trae puerto, puede fallar — mejor usar MONGO_URL
+        if port_int:
+            uri = f"mongodb://{user}:{password}@{host}:{port_int}/?authSource=admin"
+        else:
+            uri = f"mongodb://{user}:{password}@{host}/?authSource=admin"
     else:
-        uri = f"mongodb://{host}:{port}/"
-    return MongoClient(uri, serverSelectionTimeoutMS=2000)
+        if port_int:
+            uri = f"mongodb://{host}:{port_int}/"
+        else:
+            uri = f"mongodb://{host}/"
+
+    return MongoClient(uri, serverSelectionTimeoutMS=5000)
 
 
 @app.route('/')

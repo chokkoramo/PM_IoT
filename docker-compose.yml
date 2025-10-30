@@ -1,33 +1,37 @@
+
 services:
   web:
-    build: 
+    build:
       context: ./src/
-      dockerfile: dockerfile
+      dockerfile: Dockerfile
+    env_file:
+      - ./.env
     ports:
       - "7001:7001"
     volumes:
-      - "./src/:/app/src"
+      - "./src/:/app"
     environment:
-      - ENV=development
-      - MONGO_HOST=mongo
-      - MONGO_PORT=27017
-      - MONGO_DB=pm_proyect
-      - MONGO_USER=admin
-      - MONGO_PASSWORD=admin123
+      - ENV=${ENV}
+      - MONGO_URL=${MONGO_URL}
+      - MONGO_HOST=${MONGO_HOST}
+      - MONGO_PORT=${MONGO_PORT}
+      - MONGO_DB=${MONGO_DB}
+      - MONGO_USER=${MONGO_USER}
+      - MONGO_PASSWORD=${MONGO_PASSWORD}
     depends_on:
       - mongo
     networks:
       - app-networks
-  
+
   mongo:
     image: mongo:latest
     container_name: mongo
     ports:
       - "27017:27017"
     environment:
-      - MONGO_INITDB_ROOT_USERNAME=admin
-      - MONGO_INITDB_ROOT_PASSWORD=admin123
-      - MONGO_INITDB_DATABASE=pm_proyect
+      - MONGO_INITDB_ROOT_USERNAME=${MONGO_USER_LOCAL:-admin}
+      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_PASSWORD_LOCAL:-admin123}
+      - MONGO_INITDB_DATABASE=${MONGO_DB_LOCAL:-pm_proyect}
     volumes:
       - mongo-data:/data/db
     networks:
@@ -39,8 +43,8 @@ services:
     ports:
       - "8081:8081"
     environment:
-      - ME_CONFIG_MONGODB_ADMINUSERNAME=admin
-      - ME_CONFIG_MONGODB_ADMINPASSWORD=admin123
+      - ME_CONFIG_MONGODB_ADMINUSERNAME=${MONGO_USER_LOCAL:-admin}
+      - ME_CONFIG_MONGODB_ADMINPASSWORD=${MONGO_PASSWORD_LOCAL:-admin123}
       - ME_CONFIG_MONGODB_SERVER=mongo
       - ME_CONFIG_MONGODB_PORT=27017
       - ME_CONFIG_MONGODB_AUTH_DATABASE=admin
@@ -50,7 +54,7 @@ services:
       - mongo
     networks:
       - app-networks
-  
+
 volumes:
   mongo-data:
 
