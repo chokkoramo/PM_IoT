@@ -1,4 +1,3 @@
-
 services:
   web:
     build:
@@ -13,16 +12,13 @@ services:
     environment:
       - ENV=${ENV}
       - MONGO_URL=${MONGO_URL}
-      - MONGO_HOST=${MONGO_HOST}
-      - MONGO_PORT=${MONGO_PORT}
       - MONGO_DB=${MONGO_DB}
-      - MONGO_USER=${MONGO_USER}
-      - MONGO_PASSWORD=${MONGO_PASSWORD}
-    depends_on:
-      - mongo
     networks:
       - app-networks
+    # depends_on: Quitarlo para usar Atlas
+    #   - mongo
 
+  # Base local
   mongo:
     image: mongo:latest
     container_name: mongo
