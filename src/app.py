@@ -25,7 +25,7 @@ def get_mongo_client():
     else:
         uri = f"mongodb://{host}:{port}/"
 
-    return MongoClient(uri, serverSelectionTimeoutMS=5000)
+    return MongoClient(uri, serverSelectionTimeoutMS=5000)  
 
 
 @app.route('/')
@@ -39,6 +39,10 @@ def home():
 @app.route('/dashboard')
 def dashboard():
     return render_template('dashboard.html')
+
+@app.route('/test-form')
+def test_form():
+    return render_template('test_form.html')
 
 
 @app.route('/api/send', methods=['POST'])
