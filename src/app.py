@@ -37,7 +37,6 @@ def api_insert_data():
         doc = {
             'sensor': payload.get('sensor'),
             'value': payload.get('value'),
-            'meta': payload.get('meta'),
             'ts': payload.get('ts') or datetime.utcnow()
         }
         res = coll.insert_one(doc)
@@ -72,7 +71,7 @@ def api_list_data():
         return jsonify({'ok': True, 'count': len(docs), 'data': docs}), 200
     except PyMongoError as e:
         return jsonify({'ok': False, 'error': str(e)}), 503
-
+    
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=7001, debug=True)
