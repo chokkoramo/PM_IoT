@@ -37,6 +37,7 @@ def api_insert_data():
         doc = {
             'sensor': payload.get('sensor'),
             'value': payload.get('value'),
+            'unit': payload.get('unit'),
             'ts': payload.get('ts') or datetime.utcnow()
         }
         res = coll.insert_one(doc)
