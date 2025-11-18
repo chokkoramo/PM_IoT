@@ -1,13 +1,14 @@
 import os
 from datetime import datetime
-from flask import Flask, render_template, jsonify, request
+from flask import Flask, jsonify, request
 from pymongo import MongoClient
 from pymongo.errors import PyMongoError
 
 app = Flask(__name__)
 
-mongo_url = os.environ.get('MONGO_URL', 'mongodb://mongo/')
+mongo_url = os.environ.get('MONGO_URL', 'mongodb://localhost:27017/')
 client = MongoClient(mongo_url, serverSelectionTimeoutMS=5000)
+
 db_name = os.environ.get('MONGO_DB', 'test')
 db = client[db_name]
 coll = db['data']
@@ -15,64 +16,132 @@ coll = db['data']
 
 @app.route('/')
 def home():
-    return "Hello, Flask!"
+    return "OK", 200
 
 
-@app.route('/dashboard')
-def dashboard():
-    return render_template('dashboard.html')
+@app.route('/search', methods=['POST'])
+def search():
+    try:
+        sensors = coll.distinct('data')
+        return jsonify(sensors)
+    except Exception:
+        return jsonify([])
 
-@app.route('/test-form')
-def test_form():
-    return render_template('test_form.html')
+
+@app.route('/query', methods=['POST'])
+def query():
+    try:
+        req = request.get_json(force=True)
+        targets = req.get('targets', [])
+        range_ = req.get('range', {})
+
+        from_ts = datetime.fromisoformat(range_['from'].replace("Z", "+00:00"))
+        to_ts = datetime.fromisoformat(range_['to'].replace("Z", "+00:00"))
+
+        response = []
+
+        for t in targets:
+            sensor_name = t.get("target")
+
+            query = {
+                "sensor": sensor_name,
+                "ts": {"$gte": from_ts, "$lte": to_ts}
+            }
+
+            cursor = coll.find(query).sort("ts", 1)
+
+            datapoints = []
+            for d in cursor:
+                val = d.get("value")
+                ts = d.get("ts")
+                if hasattr(ts, "timestamp"):
+                    datapoints.append([val, int(ts.timestamp() * 1000)])
+
+            response.append({
+                "target": sensor_name,
+                "datapoints": datapoints
+            })
+
+        return jsonify(response)
+
+    except Exception as e:
+        print("Query Error:", e)
+        return jsonify([])
+
+
+@app.route('/json_api_data', methods=['POST'])
+def json_api_data():
+    try:
+        req = request.get_json(force=True)
+        sensor = req.get("sensor")
+        limit = int(req.get("limit", 50))
+
+        query = {"sensor": sensor} if sensor else {}
+
+        cursor = coll.find(query).sort("ts", -1).limit(limit)
+
+        data = []
+        for d in cursor:
+            d["_id"] = str(d["_id"])
+            if hasattr(d["ts"], "isoformat"):
+                d["ts"] = d["ts"].isoformat()
+            data.append(d)
+
+        return jsonify({"ok": True, "count": len(data), "data": data})
+
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)})
+
+
+@app.route('/receive_sensor_data', methods=['POST'])
+def receive_sensor_data():
+    payload = request.get_json(silent=True)
+
+    if not payload or "value" not in payload:
+        return jsonify({"ok": False, "error": "Invalid JSON"}), 400
+
+    try:
+        ts = payload.get("ts")
+
+        if isinstance(ts, str):
+            try:
+                ts = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+            except:
+                ts = datetime.utcnow()
+        elif ts is None:
+            ts = datetime.utcnow()
+
+        doc = {
+            "sensor": payload.get("sensor"),
+            "value": payload.get("value"),
+            "unit": payload.get("unit"),
+            "ts": ts
+        }
+
+        res = coll.insert_one(doc)
+        return jsonify({"ok": True, "id": str(res.inserted_id)}), 201
+
+    except PyMongoError as e:
+        return jsonify({"ok": False, "error": str(e)}), 503
 
 
 @app.route('/api/data', methods=['POST'])
-def api_insert_data():
+def insert_manual():
     payload = request.get_json(silent=True)
-    if not payload or 'value' not in payload:
-        return jsonify({'ok': False, 'error': 'JSON required with at least "value" field'}), 400
 
-    try:
-        doc = {
-            'sensor': payload.get('sensor'),
-            'value': payload.get('value'),
-            'unit': payload.get('unit'),
-            'ts': payload.get('ts') or datetime.utcnow()
-        }
-        res = coll.insert_one(doc)
-        return jsonify({'ok': True, 'inserted_id': str(res.inserted_id)}), 201
-    except PyMongoError as e:
-        return jsonify({'ok': False, 'error': str(e)}), 503
+    if not payload or "value" not in payload:
+        return jsonify({"ok": False, "error": "Invalid JSON"}), 400
 
+    doc = {
+        "sensor": payload.get("sensor"),
+        "value": payload.get("value"),
+        "unit": payload.get("unit"),
+        "ts": payload.get("ts") or datetime.utcnow()
+    }
 
-@app.route('/api/data', methods=['GET'])
-def api_list_data():
-    try:
-        limit = int(request.args.get('limit', 20))
-    except ValueError:
-        limit = 20
+    res = coll.insert_one(doc)
+    return jsonify({"ok": True, "id": str(res.inserted_id)}), 201
 
-    sensor = request.args.get('sensor')
-
-    try:
-        query = {}
-        if sensor:
-            query['sensor'] = sensor
-
-        docs_cursor = coll.find(query).sort('ts', -1).limit(limit)
-        docs = []
-        for d in docs_cursor:
-            d['_id'] = str(d.get('_id'))
-            ts = d.get('ts')
-            if hasattr(ts, 'isoformat'):
-                d['ts'] = ts.isoformat()
-            docs.append(d)
-
-        return jsonify({'ok': True, 'count': len(docs), 'data': docs}), 200
-    except PyMongoError as e:
-        return jsonify({'ok': False, 'error': str(e)}), 503
-    
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=7001, debug=True)
+    app.run(host='0.0.0.0', port=7001)
