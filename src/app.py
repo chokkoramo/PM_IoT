@@ -69,7 +69,7 @@ def query():
         return jsonify([])
 
 
-@app.route('/json_api_data', methods=['POST'])
+@app.route('/json_api_data', methods=['POST', 'GET'])
 def json_api_data():
     try:
         req = request.get_json(force=True)
@@ -123,24 +123,6 @@ def receive_sensor_data():
 
     except PyMongoError as e:
         return jsonify({"ok": False, "error": str(e)}), 503
-
-
-@app.route('/api/data', methods=['POST'])
-def insert_manual():
-    payload = request.get_json(silent=True)
-
-    if not payload or "value" not in payload:
-        return jsonify({"ok": False, "error": "Invalid JSON"}), 400
-
-    doc = {
-        "sensor": payload.get("sensor"),
-        "value": payload.get("value"),
-        "unit": payload.get("unit"),
-        "ts": payload.get("ts") or datetime.utcnow()
-    }
-
-    res = coll.insert_one(doc)
-    return jsonify({"ok": True, "id": str(res.inserted_id)}), 201
 
 
 if __name__ == '__main__':
