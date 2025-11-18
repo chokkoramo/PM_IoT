@@ -69,13 +69,21 @@ def query():
         return jsonify([])
 
 
-@app.route('/json_api_data', methods=['POST', 'GET'])
+@app.route('/json_api_data', methods=['GET', 'POST'])
 def json_api_data():
     try:
-        req = request.get_json(force=True)
-        sensor = req.get("sensor")
-        limit = int(req.get("limit", 50))
+        # ----- Para GET sin JSON -----
+        if request.method == 'GET':
+            sensor = request.args.get("sensor")  # /json_api_data?sensor=Temperature
+            limit = int(request.args.get("limit", 50))
 
+        # ----- Para POST con JSON -----
+        else:
+            req = request.get_json(silent=True) or {}
+            sensor = req.get("sensor")
+            limit = int(req.get("limit", 50))
+
+        # Construcción de la query
         query = {"sensor": sensor} if sensor else {}
 
         cursor = coll.find(query).sort("ts", -1).limit(limit)
@@ -90,7 +98,7 @@ def json_api_data():
         return jsonify({"ok": True, "count": len(data), "data": data})
 
     except Exception as e:
-        return jsonify({"ok": False, "error": str(e)})
+        return jsonify({"ok": False, "error": str(e)}), 500
 
 
 @app.route('/receive_sensor_data', methods=['POST'])
