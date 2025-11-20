@@ -83,8 +83,22 @@ def json_api_data():
             sensor = req.get("sensor")
             limit = int(req.get("limit", 50))
 
-        # Construcción de la query
-        query = {"sensor": sensor} if sensor else {}
+        # --- Nuevo soporte para sensores anidados ---
+        query = {}
+
+        # Determinar campo según sensor solicitado
+        if sensor == "temperature":
+            query = {"temperature.value": {"$exists": True}}
+            value_path = ("temperature", "value")
+        elif sensor == "humidity":
+            query = {"humidity.value": {"$exists": True}}
+            value_path = ("humidity", "value")
+        elif sensor == "air_quality":
+            query = {"air_quality.value": {"$exists": True}}
+            value_path = ("air_quality", "value")
+        else:
+            # si no hay sensor, devolver todo sin filtro
+            value_path = None
 
         cursor = coll.find(query).sort("ts", -1).limit(limit)
 
@@ -93,6 +107,12 @@ def json_api_data():
             d["_id"] = str(d["_id"])
             if hasattr(d["ts"], "isoformat"):
                 d["ts"] = d["ts"].isoformat()
+
+            # extraer valor según sensor requerido
+            if value_path:
+                section, key = value_path
+                d["value"] = d.get(section, {}).get(key)
+
             data.append(d)
 
         return jsonify({"ok": True, "count": len(data), "data": data})
@@ -120,10 +140,11 @@ def receive_sensor_data():
             ts = datetime.utcnow()
 
         doc = {
-            "sensor": payload.get("sensor"),
-            "value": payload.get("value"),
-            "unit": payload.get("unit"),
-            "ts": ts
+            "ts": ts,
+            "device_id": payload.get("device_id"),
+            "temperature": payload.get("temperature"),
+            "humidity": payload.get("humidity"),
+            "air_quality": payload.get("air_quality")
         }
 
         res = coll.insert_one(doc)
