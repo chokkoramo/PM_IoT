@@ -125,7 +125,7 @@ def json_api_data():
 def receive_sensor_data():
     payload = request.get_json(silent=True)
 
-    if not payload or "value" not in payload:
+    if not payload:
         return jsonify({"ok": False, "error": "Invalid JSON"}), 400
 
     try:
