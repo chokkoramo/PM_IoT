@@ -83,7 +83,6 @@ def json_api_data():
             sensor = req.get("sensor")
             limit = int(req.get("limit", 50))
 
-        # --- Nuevo soporte para sensores anidados ---
         query = {}
 
         # Determinar campo según sensor solicitado
@@ -105,8 +104,8 @@ def json_api_data():
         data = []
         for d in cursor:
             d["_id"] = str(d["_id"])
-            if hasattr(d["ts"], "isoformat"):
-                d["ts"] = d["ts"].isoformat()
+            if hasattr(d["ts"], "timestamp"):
+                d["ts"] = int(d["ts"].timestamp() * 1000)
 
             # extraer valor según sensor requerido
             if value_path:
